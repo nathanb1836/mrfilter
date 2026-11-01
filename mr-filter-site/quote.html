@@ -99,7 +99,7 @@ img{max-width:100%}
 
         <fieldset style="border:0;padding:0;margin:0">
           <legend style="font-size:16px;font-weight:700;padding:0;margin-bottom:6px">Preferred plan term</legend>
-          <p style="margin:0 0 12px;font-size:16px;color:#3A5288">Longer terms get a better deal and a locked price.</p>
+          <p style="margin:0 0 12px;font-size:16px;color:#3A5288">Longer terms get a better deal and a locked price. Paying all upfront saves the most.</p>
           <div id="q-terms" role="radiogroup" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px"></div>
         </fieldset>
 
@@ -176,8 +176,10 @@ img{max-width:100%}
   var FILTERS = ['Air (furnace / HVAC)', 'Whole-house water', 'Under-sink', 'Fridge', 'Reverse osmosis (RO)', 'Not sure'];
   var TERMS = [['1', '1 year', ''], ['2', '2 years', 'Save more'], ['3', '3 years', 'Best value'], ['unsure', 'Not sure', '']];
   var SIZES = ['16x20x1', '16x25x1', '20x20x1', '20x25x1', '14x25x1', '24x24x1', '20x25x4', 'Other / not sure'];
-  var PAYS = [['monthly', 'Monthly', 'Charged automatically'], ['yearly', 'Yearly, up front', 'One charge per year']];
-  var S = { type: 'Home', filters: [], term: '3', units: 1, sizes: [], pay: 'monthly' };
+  var PAYS = [['monthly', 'Monthly', '1-year plans · $19/mo'], ['yearly', 'Yearly', 'One charge per year'], ['upfront', 'All upfront', 'Best price · 2 and 3-year plans']];
+  function payOk(p, t) { return p === 'monthly' ? (t === '1' || t === 'unsure') : p === 'upfront' ? t !== '1' : p === 'yearly'; }
+  function defPay(t) { return t === '1' ? 'yearly' : 'upfront'; }
+  var S = { type: 'Home', filters: [], term: '3', units: 1, sizes: [], pay: 'upfront' };
   var $ = function (id) { return document.getElementById(id); };
   function sel(on) { return 'border:' + (on ? '2px solid #1E5BC6' : '1.5px solid #B9D9F3') + ';background:' + (on ? '#E6F4FD' : '#fff'); }
   function esc(s) { return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;'); }
@@ -186,6 +188,9 @@ img{max-width:100%}
   if (plan === 'air') S.filters = ['Air (furnace / HVAC)'];
   if (plan === 'home') S.filters = ['Air (furnace / HVAC)', 'Whole-house water'];
   if (plan === 'business') S.type = 'Business';
+  var qp = new URLSearchParams(location.search), tp = qp.get('term'), pp = qp.get('pay');
+  if (['1', '2', '3'].indexOf(tp) > -1) S.term = tp;
+  S.pay = pp && payOk(pp, S.term) ? pp : defPay(S.term);
 
   function render() {
     $('q-types').innerHTML = ['Home', 'Business'].map(function (l) {
@@ -204,8 +209,8 @@ img{max-width:100%}
       return '<button type="button" aria-pressed="' + on + '" data-size="' + i + '" style="min-height:44px;padding:0 14px;border-radius:12px;font-family:ui-monospace,Menlo,monospace;font-size:15px;font-weight:600;cursor:pointer;color:#0E2A6B;' + sel(on) + '">' + esc(l) + '</button>';
     }).join('');
     $('q-pays').innerHTML = PAYS.map(function (p) {
-      var on = S.pay === p[0];
-      return '<button type="button" role="radio" aria-checked="' + on + '" data-pay="' + p[0] + '" style="min-height:64px;padding:8px 14px;border-radius:16px;cursor:pointer;color:#0E2A6B;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;' + sel(on) + '"><span style="font-size:18px;font-weight:700">' + p[1] + '</span><span style="font-size:13px;color:#3A5288;font-weight:600">' + p[2] + '</span></button>';
+      var on = S.pay === p[0], off = !payOk(p[0], S.term);
+      return '<button type="button" role="radio" aria-checked="' + on + '"' + (off ? ' disabled aria-disabled="true"' : '') + ' data-pay="' + p[0] + '" style="min-height:64px;padding:8px 14px;border-radius:16px;cursor:' + (off ? 'not-allowed;opacity:.45' : 'pointer') + ';color:#0E2A6B;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;' + sel(on) + '"><span style="font-size:18px;font-weight:700">' + p[1] + '</span><span style="font-size:13px;color:#3A5288;font-weight:600">' + p[2] + '</span></button>';
     }).join('');
     $('q-terms').innerHTML = TERMS.map(function (t) {
       var on = S.term === t[0];
@@ -226,7 +231,7 @@ img{max-width:100%}
     }
     else if (d.size !== undefined) { var z = SIZES[+d.size]; S.sizes = S.sizes.indexOf(z) > -1 ? S.sizes.filter(function (x) { return x !== z; }) : S.sizes.concat([z]); }
     else if (d.pay) S.pay = d.pay;
-    else if (d.term) S.term = d.term;
+    else if (d.term) { S.term = d.term; if (!payOk(S.pay, S.term)) S.pay = defPay(S.term); }
     else if (b.id === 'u-up') S.units = Math.min(20, S.units + 1);
     else if (b.id === 'u-down') S.units = Math.max(1, S.units - 1);
     else return;
@@ -255,7 +260,7 @@ img{max-width:100%}
       kind_of_request: 'quote', name: d.name, email: d.email, phone: d.phone, zip: d.zip, website: d.website,
       consent: d.consent ? 'yes' : 'no', type: S.type, filters: S.filters.join(', '),
       units: S.filters.indexOf('Air (furnace / HVAC)') > -1 ? S.units : '', sizes: S.sizes.join(', '),
-      term: termObj ? termObj[1] : '', payment: S.pay === 'monthly' ? 'Monthly' : 'Yearly, up front'
+      term: termObj ? termObj[1] : '', payment: { monthly: 'Monthly', yearly: 'Yearly', upfront: 'All upfront' }[S.pay]
     };
     var btn = $('q-submit'), label = btn.textContent; $('q-error').hidden = true; btn.disabled = true; btn.textContent = 'Sending…';
     window.sendLead(payload).then(function (ok) {
